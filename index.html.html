@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Cấu hình PWA cho iOS để trông giống app thật khi Add to Home Screen -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Thợ Tốt App">
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/blue/white?text=TT">
+    
+    <title>Chợ Thợ Điện Thoại</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS cho Bản đồ -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Font Awesome cho Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Tùy chỉnh thanh cuộn ẩn đi cho giống app */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        /* Chỉnh lại z-index của bản đồ để không đè lên header */
+        #map {
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex justify-center items-center h-screen overflow-hidden">
+
+    <!-- Mobile Device Container (Giả lập màn hình điện thoại) -->
+    <div class="w-full h-full max-w-[430px] bg-white relative flex flex-col shadow-2xl sm:h-[90vh] sm:rounded-[40px] sm:border-[8px] sm:border-gray-900 overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-blue-600 text-white p-4 shadow-md z-20 sticky top-0 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">Thợ Tốt Mobile</h1>
+                <p class="text-xs text-blue-200"><i class="fa-solid fa-location-dot mr-1"></i> Khu vực Thủ Đức, TP.HCM</p>
+            </div>
+            <button class="bg-white/20 p-2 rounded-full w-10 h-10 flex items-center justify-center backdrop-blur-sm">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </header>
+
+        <!-- Bản đồ -->
+        <div id="map" class="h-[40%] w-full bg-gray-200 flex-shrink-0"></div>
+
+        <!-- Danh sách cửa hàng/thợ (Có thể cuộn) -->
+        <div class="flex-1 bg-gray-50 p-4 overflow-y-auto no-scrollbar pb-24 z-20 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] rounded-t-3xl -mt-5 relative">
+            
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div> <!-- Thanh vuốt -->
+            
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">Thợ quanh bạn (3)</h2>
+                <button class="text-blue-600 text-sm font-semibold">Lọc <i class="fa-solid fa-filter"></i></button>
+            </div>
+
+            <!-- Nơi chứa các card cửa hàng được render bằng JS -->
+            <div id="shop-list" class="space-y-4">
+                <!-- Nội dung sẽ được đổ vào đây -->
+            </div>
+        </div>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="absolute bottom-0 w-full bg-white border-t border-gray-200 flex justify-around py-3 z-30 pb-6 sm:pb-3">
+            <button class="flex flex-col items-center text-blue-600">
+                <i class="fa-solid fa-map-location-dot text-xl mb-1"></i>
+                <span class="text-[10px] font-semibold">Khám phá</span>
+            </button>
+            <button class="flex flex-col items-center text-gray-400">
+                <i class="fa-solid fa-clock-rotate-left text-xl mb-1"></i>
+                <span class="text-[10px] font-semibold">Lịch sử</span>
+            </button>
+            <button class="relative -top-5 flex flex-col items-center">
+                <div class="bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-4 border-white">
+                    <i class="fa-solid fa-plus text-2xl"></i>
+                </div>
+                <span class="text-[10px] font-semibold text-gray-800 mt-1">Đăng nhu cầu</span>
+            </button>
+            <button class="flex flex-col items-center text-gray-400">
+                <i class="fa-solid fa-message text-xl mb-1"></i>
+                <span class="text-[10px] font-semibold">Tin nhắn</span>
+            </button>
+            <button class="flex flex-col items-center text-gray-400">
+                <i class="fa-solid fa-user text-xl mb-1"></i>
+                <span class="text-[10px] font-semibold">Tài khoản</span>
+            </button>
+        </nav>
+    </div>
+
+    <script>
+        // 1. Dữ liệu giả lập các cửa hàng
+        const mockShops = [
+            {
+                id: 1,
+                name: "Anh Quốc Store (Đại lý VIP)",
+                lat: 10.8494, // Tọa độ giả định khu vực Thủ Đức
+                lng: 106.7538,
+                distance: "0.5 km",
+                rating: 5.0,
+                reviews: 124,
+                services: ["Unlock iCloud", "Ép kính", "Thu cũ đổi mới"],
+                avatar: "https://placehold.co/100x100/1d4ed8/white?text=AQ",
+                isVerified: true
+            },
+            {
+                id: 2,
+                name: "Thợ Sửa ĐTDĐ Tuấn Cường",
+                lat: 10.8450,
+                lng: 106.7480,
+                distance: "1.2 km",
+                rating: 4.8,
+                reviews: 56,
+                services: ["Thay pin", "Sửa phần cứng"],
+                avatar: "https://placehold.co/100x100/10b981/white?text=TC",
+                isVerified: false
+            },
+            {
+                id: 3,
+                name: "Chuyên Gia Ép Kính Số 1",
+                lat: 10.8520,
+                lng: 106.7600,
+                distance: "2.1 km",
+                rating: 4.9,
+                reviews: 89,
+                services: ["Ép kính cong", "Thay màn hình"],
+                avatar: "https://placehold.co/100x100/f59e0b/white?text=EK",
+                isVerified: true
+            }
+        ];
+
+        // 2. Khởi tạo Bản đồ Leaflet
+        // Set center về tọa độ của Anh Quốc Store
+        const map = L.map('map', {
+            zoomControl: false // Tắt nút zoom mặc định cho giống app
+        }).setView([10.8494, 106.7538], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Icon marker tùy chỉnh cho bản đồ
+        const customIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full border-2 border-white shadow-lg"><i class="fa-solid fa-mobile-screen-button"></i></div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const myLocationIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div class="bg-red-500 w-4 h-4 rounded-full border-2 border-white shadow-[0_0_0_4px_rgba(239,68,68,0.3)] animation-pulse"></div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+
+        // Đánh dấu vị trí người dùng (Giả lập)
+        L.marker([10.8470, 106.7500], {icon: myLocationIcon}).addTo(map).bindPopup("Vị trí của bạn");
+
+        // 3. Render Marker trên Map và Render Danh sách
+        const shopListContainer = document.getElementById('shop-list');
+
+        mockShops.forEach(shop => {
+            // Thêm marker vào map
+            L.marker([shop.lat, shop.lng], {icon: customIcon})
+                .addTo(map)
+                .bindPopup(`<b>${shop.name}</b><br>${shop.services.join(', ')}`);
+
+            // Tạo thẻ HTML cho danh sách
+            const tagsHtml = shop.services.map(srv => 
+                `<span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded-md font-medium border border-gray-200">${srv}</span>`
+            ).join('');
+
+            const verifyBadge = shop.isVerified 
+                ? `<i class="fa-solid fa-circle-check text-blue-500 ml-1" title="Đã xác thực"></i>` 
+                : '';
+
+            const shopCard = `
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-3 items-start transition active:scale-95">
+                    <img src="${shop.avatar}" alt="${shop.name}" class="w-16 h-16 rounded-xl object-cover shadow-sm">
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-bold text-sm text-gray-800 leading-tight">${shop.name} ${verifyBadge}</h3>
+                            <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <i class="fa-solid fa-person-walking text-blue-500"></i> ${shop.distance}
+                            </span>
+                        </div>
+                        
+                        <div class="flex items-center text-xs mt-1 mb-2">
+                            <i class="fa-solid fa-star text-yellow-400 mr-1"></i>
+                            <span class="font-bold text-gray-700">${shop.rating}</span>
+                            <span class="text-gray-400 ml-1">(${shop.reviews} đánh giá)</span>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-1">
+                            ${tagsHtml}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-[-5px] pl-[76px] pb-2">
+                     <button class="flex-1 bg-blue-50 text-blue-600 border border-blue-100 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex items-center justify-center gap-1">
+                        <i class="fa-brands fa-rocketchat"></i> Chat ngay
+                    </button>
+                    <button class="flex-1 bg-blue-600 text-white py-1.5 rounded-lg text-xs font-bold shadow-md shadow-blue-200 hover:bg-blue-700 transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-phone"></i> Gọi thợ
+                    </button>
+                </div>
+            `;
+            
+            // Bọc vào 1 div cha
+            const cardWrapper = document.createElement('div');
+            cardWrapper.className = "bg-white rounded-2xl p-1 shadow-sm border border-gray-100 mb-3";
+            cardWrapper.innerHTML = shopCard;
+            shopListContainer.appendChild(cardWrapper);
+        });
+
+    </script>
+</body>
+</html>
